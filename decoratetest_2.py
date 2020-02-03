@@ -8,6 +8,7 @@ class DatetimeDecorator :
         print(datetime.datetime.now())
         self.func()
         print(datetime.datetime.now())
+    
 
 class MainClass :
     @DatetimeDecorator
