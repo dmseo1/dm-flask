@@ -5,7 +5,7 @@ from flask_mysqldb import MySQL
 #import pymysql
 from wtforms import Form, StringField, TextAreaField, PasswordField, validators # 각종 텍스트필드 유효성검증 도구들
 from functools import wraps # 익명함수를 디버깅할 수 있는 것
-
+from passlib.hash import pbkdf2_sha256 # sha256 으로 인코딩
 
 app = Flask(__name__) # 5000번 포트에 앱 실행
 # app.debug = True ;  app.run() 메소드 안에 debug=True 옵션을 주는 것과 동일하다
@@ -104,7 +104,7 @@ def register() :
         name = form.name.data
         email = form.email.data
         username = form.username.data
-        password = form.password.data
+        password = pbkdf2_sha256.hash(str(form.password.data))
         cur = mysql.connection.cursor()
         cur.execute('INSERT INTO users(name, email, username, password) VALUES(%s, %s, %s, %s)', (name, email, username, password))
         mysql.connection.commit()
@@ -112,9 +112,36 @@ def register() :
     return render_template('register.html', form=form)
 
 
+@app.route('/login', methods=['GET', 'POST'])
+def login() :
+    if request.method == 'POST' :
+        username = request.form['username'] #input 태그의 name 속성을 참조해야한다, 즉, <input . . . name='username' . . . /> 상태였음
+        password_candidate = request.form['password'] 
+
+        cur = mysql.connection.cursor()
+        result = cur.execute('SELECT password FROM users WHERE username="%s"' % username) 
+        print("result: ", result)
+        
+
+        if result > 0 :
+            user = cur.fetchall()
+            password = user[0]['password']
+            print("password: ", password)
+            if pbkdf2_sha256.verify(password_candidate, password) :
+                return redirect(url_for('articles')) # 'articles' 는 함수명이다
+            else : 
+                return "패스워드가 틀렸습니다."
+        else :
+            return "아이디가 존재하지 않습니다."
+        cur.close()
+
+        return "SUCCESS"
+
+    return render_template('login.html')
+
 @app.route('/add_article', methods=['GET', 'POST'])
 def add_article() :
-    form = ArticleForm(request.form)    #request 라이브러리를 import해야한다
+    form = ArticleForm(request.form)    #request 라이브러리를 import해야한다. node.js에서는 req, res를 인자로 받아서 처리했는데 여기서는 라이브러리를 불러오는 것만으로도 해결 가능하다.
     if request.method == 'POST' and form.validate() :
         #title = request.form['title']
         #body = request.form['body']
