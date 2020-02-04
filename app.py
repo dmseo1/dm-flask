@@ -1,9 +1,8 @@
 from flask import Flask, render_template, request, flash, redirect, url_for, session, logging  # Flask라는 클래스를 불러올 것
                                           # render_template: 보여지게 하는 데 필요한 것들을 모아놓음
-from data import Articles
+#from data import Articles #garaData가 있던 곳
 from flask_mysqldb import MySQL
-import flask_mysqldb
-import pymysql
+#import pymysql
 from wtforms import Form, StringField, TextAreaField, PasswordField, validators # 각종 텍스트필드 유효성검증 도구들
 from functools import wraps # 익명함수를 디버깅할 수 있는 것
 
@@ -29,18 +28,10 @@ mysql = MySQL(app)
 
 
 
-garaData = Articles()
-#print(garaData[0]['title'])
+#garaData = Articles()
 
 @app.route('/') # decorate(장식자). 바로 밑에 함수를 붙여주면 그것이 실행된다.
 def hello() :
-    #data1 = cursor.execute("INSERT INTO users(name, email, username, password) VALUES('seo', 'dmseo@llit.kr', '동민', '1234')")
-    #print(data1)
-    # cur = msms.connection.cursor()
-    # cur.execute("INSERT INTO users(name, email, username, password, register_date) VALUES ('a','b','c','d',NOW())");
-    # msms.connection.commit()
-    # cur.close()
-
     return render_template('home.html')
     
 
@@ -52,13 +43,32 @@ def user(name) :
 def about() :
     return render_template('about.html')
 
+
+
 @app.route('/articles')
 def articles() :
-    return render_template('articles.html', articles=garaData)
+    cur = mysql.connection.cursor()
+    result = cur.execute('SELECT id, title FROM articles')
+    print("result: ", result)
+    my_articles = cur.fetchall()
+    print("articles: ", my_articles)
+
+    print(type(my_articles))
+
+    if result > 0 :
+        return render_template('articles.html', articles=my_articles)
+    else :
+        return "등록된 자료가 없습니다"
+    mysql.connection.commit()
+    cur.close()
+    return render_template('articles.html', articles='')
 
 @app.route('/articles/<string:id>')
 def read_article(id) :
-    return render_template('read_article.html', id=int(id), article=garaData)
+    cur = mysql.connection.cursor()
+    result = cur.execute('SELECT * FROM articles WHERE id=%d' % int(id))
+    my_article = cur.fetchall()
+    return render_template('read_article.html', id=int(id), article=my_article)
 
 
 
@@ -77,23 +87,41 @@ class RegisterForm(Form): # import 해온 Form이라는 클래스를 받아서 �
     name = StringField('Name', [validators.Length(min=1, max=50)])
     username = StringField('Username', [validators.Length(min=4, max=25)])
     email = StringField('Email', [validators.Length(min=4, max=25)])
-    password = PasswordField('Password', [validators.DataRequired(), validators.EqualTo('Confirm', message='passwords do not match')]) # 입력한 두 개의 password가 맞는지 확인하는 필드
-    confirm = PasswordField('Confirm', [validators.DataRequired(), validators.EqualTo('Passowrd', message='passwords do not match')])
+    password=PasswordField('Password',[validators.DataRequired(), validators.EqualTo('confirm', message='passwords do not match')])
+    confirm = PasswordField('Confirm password')
+
 
 class ArticleForm(Form) :
     title = StringField('Title', [validators.Length(min=1, max=50)])
     body = StringField('Body', [validators.Length(min=20, max=1000)])
 
 
+#https://flask-docs-kr.readthedocs.io/ko/latest/patterns/wtforms.html
+@app.route('/register', methods=['GET', 'POST'])
+def register() :
+    form = RegisterForm(request.form)
+    if request.method == 'POST' and form.validate() :   #validate() : 데이터 검증
+        name = form.name.data
+        email = form.email.data
+        username = form.username.data
+        password = form.password.data
+        cur = mysql.connection.cursor()
+        cur.execute('INSERT INTO users(name, email, username, password) VALUES(%s, %s, %s, %s)', (name, email, username, password))
+        mysql.connection.commit()
+        return "회원가입이 완료되었습니다"
+    return render_template('register.html', form=form)
+
 
 @app.route('/add_article', methods=['GET', 'POST'])
 def add_article() :
-    form = ArticleForm(request.form)    #request 라이브러리
+    form = ArticleForm(request.form)    #request 라이브러리를 import해야한다
     if request.method == 'POST' and form.validate() :
-        title = request.form['title']
-        body = request.form['body']
+        #title = request.form['title']
+        #body = request.form['body']
         # title = req.body.title
         # body = req.body.body
+        title = form.title.data
+        body = form.body.data
         cur = mysql.connection.cursor()
         cur.execute("INSERT INTO articles(title, body) VALUES(%s, %s)" , (title, body))
         mysql.connection.commit()
